@@ -393,4 +393,281 @@ def main():
             help="GPS取得した経度をここに入力してください"
         )
         
-        # 座標
+        # 座標更新ボタン
+        if st.button('📍 位置情報を更新', type="primary"):
+            st.session_state.current_location = [current_lat, current_lon]
+            st.success(f"現在地を更新しました: {current_lat:.6f}, {current_lon:.6f}")
+            st.rerun()
+    
+    st.session_state.current_location = [current_lat, current_lon]
+    
+    # 現在の位置情報表示
+    st.info(f"**現在設定中の位置:** {st.session_state.current_location[0]:.6f}, {st.session_state.current_location[1]:.6f}")
+    
+    # 日田市中心部の主要地点への設定ボタン
+    st.markdown("### 🏢 主要地点に設定")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if st.button('🚉 日田駅', help='JR日田駅周辺'):
+            st.session_state.current_location = [33.3233, 130.9417]
+            st.rerun()
+    with col2:
+        if st.button('🏛️ 豆田町', help='歴史的町並み保存地区'):
+            st.session_state.current_location = [33.3278, 130.9472]
+            st.rerun()
+    with col3:
+        if st.button('♨️ 日田温泉', help='三隈川沿い温泉街'):
+            st.session_state.current_location = [33.3210, 130.9380]
+            st.rerun()
+    with col4:
+        if st.button('🏫 市役所', help='日田市役所'):
+            st.session_state.current_location = [33.3273, 130.9408]
+            st.rerun()
+
+    if st.session_state.mode == 'tourism':
+        tourism_mode()
+    else:
+        disaster_mode()
+
+def tourism_mode():
+    lang = st.session_state.language
+    
+    st.header(get_text('tourism_mode', lang))
+    
+    # 期間限定イベント
+    st.subheader(get_text('seasonal_events', lang))
+    if lang in SEASONAL_EVENTS and SEASONAL_EVENTS[lang]:
+        for event in SEASONAL_EVENTS[lang]:
+            with st.expander(f"🎭 {event['name']}"):
+                st.write(f"📅 **期間:** {event['start_date']} - {event['end_date']}")
+                st.write(f"📝 **説明:** {event.get('description', '詳細情報なし')}")
+                st.write(f"📍 **GPS座標:** {event['lat']:.6f}, {event['lon']:.6f}")
+                
+                # イベント会場への移動時間
+                bicycle_time, car_time, public_time, public_fee = calculate_travel_time(
+                    st.session_state.current_location[0], st.session_state.current_location[1],
+                    event['lat'], event['lon']
+                )
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write(f"**移動時間:**")
+                    st.write(f"🚲 {bicycle_time}分 🚗 {car_time}分 🚌 {public_time}分")
+                with col2:
+                    maps_url = f"https://maps.google.com/maps?q={event['lat']},{event['lon']}"
+                    route_url = f"https://maps.google.com/maps/dir/{st.session_state.current_location[0]},{st.session_state.current_location[1]}/{event['lat']},{event['lon']}"
+                    st.markdown(f"[🗺️ 地図で見る]({maps_url}) | [🧭 ルート]({route_url})")
+    else:
+        st.write("現在開催中の期間限定イベントはありません。")
+
+    # おすすめスポット
+    st.subheader(get_text('recommended_places', lang))
+    
+    spots_key = lang if lang in TOURISM_SPOTS else 'ja'
+    spots = TOURISM_SPOTS[spots_key]
+    
+    # スポット一覧表示
+    for i, spot in enumerate(spots):
+        with st.expander(f"📍 {spot['name']}"):
+            # 基本情報を表示
+            st.write(f"**説明:** {spot.get('description', '詳細情報なし')}")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.write(f"**{get_text('waiting_time', lang)}:** {spot['waiting_time']}{get_text('minutes', lang)}")
+                parking_status = get_text('parking_available', lang) if spot['parking'] else get_text('parking_unavailable', lang)
+                st.write(f"**🚗:** {parking_status}")
+            
+            with col2:
+                if spot['entrance_fee'] > 0:
+                    st.write(f"**{get_text('entrance_fee', lang)}:** {spot['entrance_fee']}{get_text('yen', lang)}")
+                else:
+                    st.write(f"**{get_text('entrance_fee', lang)}:** 無料")
+                
+                # GPS座標を表示
+                st.write(f"**GPS:** {spot['lat']:.6f}, {spot['lon']:.6f}")
+            
+            with col3:
+                # 移動時間計算
+                bicycle_time, car_time, public_time, public_fee = calculate_travel_time(
+                    st.session_state.current_location[0], st.session_state.current_location[1],
+                    spot['lat'], spot['lon']
+                )
+                
+                st.write(f"**{get_text('travel_time', lang)}:**")
+                st.write(f"🚲 {bicycle_time}{get_text('minutes', lang)}")
+                st.write(f"🚗 {car_time}{get_text('minutes', lang)}")
+                st.write(f"🚌 {public_time}{get_text('minutes', lang)} ({public_fee}{get_text('yen', lang)})")
+            
+            # Google Mapsリンクを追加
+            maps_url = f"https://maps.google.com/maps?q={spot['lat']},{spot['lon']}"
+            st.markdown(f"[🗺️ Google Mapsで開く]({maps_url})")
+            
+            # ルート検索リンク
+            route_url = f"https://maps.google.com/maps/dir/{st.session_state.current_location[0]},{st.session_state.current_location[1]}/{spot['lat']},{spot['lon']}"
+            st.markdown(f"[🧭 ルート検索]({route_url})")
+
+    # マップ表示
+    st.subheader(get_text('map_view', lang))
+    m = create_map()
+    
+    # 現在地をマーカーで表示
+    folium.Marker(
+        st.session_state.current_location,
+        popup="現在地",
+        icon=folium.Icon(color='red', icon='info-sign')
+    ).add_to(m)
+    
+    # 観光スポットをマーカーで表示
+    for spot in spots:
+        folium.Marker(
+            [spot['lat'], spot['lon']],
+            popup=spot['name'],
+            icon=folium.Icon(color='blue', icon='star')
+        ).add_to(m)
+    
+    st_folium(m, width=700, height=500)
+
+def disaster_mode():
+    lang = st.session_state.language
+    
+    st.header(get_text('disaster_mode', lang))
+    
+    # 避難所情報
+    st.subheader(get_text('evacuation_shelters', lang))
+    
+    shelter_data = []
+    for shelter in EVACUATION_SHELTERS:
+        bicycle_time, car_time, public_time, public_fee = calculate_travel_time(
+            st.session_state.current_location[0], st.session_state.current_location[1],
+            shelter['lat'], shelter['lon']
+        )
+        
+        shelter_data.append({
+            '避難所名': shelter['name'],
+            '収容人数': f"{shelter['capacity']}人",
+            '住所': shelter['address'],
+            '徒歩時間': f"{bicycle_time * 2}分",  # 徒歩は自転車の2倍時間
+            '車での時間': f"{car_time}分",
+            'GPS座標': f"{shelter['lat']:.6f}, {shelter['lon']:.6f}"
+        })
+    
+    st.dataframe(pd.DataFrame(shelter_data))
+    
+    # 危険箇所
+    st.subheader(get_text('dangerous_areas', lang))
+    
+    danger_data = []
+    for danger in DANGEROUS_AREAS:
+        danger_data.append({
+            '場所': danger['name'],
+            '災害種別': danger['risk_type'],
+            '危険レベル': danger['risk_level'],
+            'GPS座標': f"{danger['lat']:.6f}, {danger['lon']:.6f}"
+        })
+    
+    st.dataframe(pd.DataFrame(danger_data))
+    
+    # 防災マップ
+    st.subheader(get_text('map_view', lang))
+    m = create_map()
+    
+    # 現在地
+    folium.Marker(
+        st.session_state.current_location,
+        popup="現在地",
+        icon=folium.Icon(color='red', icon='info-sign')
+    ).add_to(m)
+    
+    # 避難所
+    for shelter in EVACUATION_SHELTERS:
+        folium.Marker(
+            [shelter['lat'], shelter['lon']],
+            popup=f"{shelter['name']}<br>収容人数: {shelter['capacity']}人<br>{shelter['address']}",
+            icon=folium.Icon(color='green', icon='home')
+        ).add_to(m)
+    
+    # 危険箇所
+    for danger in DANGEROUS_AREAS:
+        color = 'red' if danger['risk_level'] == '高' else 'orange'
+        folium.Marker(
+            [danger['lat'], danger['lon']],
+            popup=f"{danger['name']}<br>{danger['risk_type']}<br>危険レベル: {danger['risk_level']}",
+            icon=folium.Icon(color=color, icon='warning-sign')
+        ).add_to(m)
+    
+    st_folium(m, width=700, height=500)
+
+    # 最寄りの避難所への経路案内
+    if st.button(get_text('safe_route', lang)):
+        # 最寄りの避難所を計算（簡易版）
+        min_distance = float('inf')
+        nearest_shelter = None
+        
+        for shelter in EVACUATION_SHELTERS:
+            distance = np.sqrt(
+                (shelter['lat'] - st.session_state.current_location[0])**2 + 
+                (shelter['lon'] - st.session_state.current_location[1])**2
+            )
+            if distance < min_distance:
+                min_distance = distance
+                nearest_shelter = shelter
+        
+        if nearest_shelter:
+            st.success(f"最寄りの避難所: {nearest_shelter['name']}")
+            st.info(f"住所: {nearest_shelter['address']}")
+            st.info(f"収容人数: {nearest_shelter['capacity']}人")
+            
+            # 移動時間を表示
+            bicycle_time, car_time, public_time, public_fee = calculate_travel_time(
+                st.session_state.current_location[0], st.session_state.current_location[1],
+                nearest_shelter['lat'], nearest_shelter['lon']
+            )
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🚶 徒歩", f"{bicycle_time * 2}分")
+            with col2:
+                st.metric("🚲 自転車", f"{bicycle_time}分")
+            with col3:
+                st.metric("🚗 車", f"{car_time}分")
+            
+            # 簡易ルート表示
+            route_map = create_map()
+            
+            # 現在地と避難所をマーカーで表示
+            folium.Marker(
+                st.session_state.current_location,
+                popup="現在地",
+                icon=folium.Icon(color='red', icon='info-sign')
+            ).add_to(route_map)
+            
+            folium.Marker(
+                [nearest_shelter['lat'], nearest_shelter['lon']],
+                popup=f"避難所: {nearest_shelter['name']}",
+                icon=folium.Icon(color='green', icon='home')
+            ).add_to(route_map)
+            
+            # 簡易ルートライン
+            folium.PolyLine(
+                [st.session_state.current_location, [nearest_shelter['lat'], nearest_shelter['lon']]],
+                weight=5,
+                color='blue',
+                opacity=0.8
+            ).add_to(route_map)
+            
+            st_folium(route_map, width=700, height=400)
+            
+            # Google Mapsでのルート検索リンク
+            route_url = f"https://maps.google.com/maps/dir/{st.session_state.current_location[0]},{st.session_state.current_location[1]}/{nearest_shelter['lat']},{nearest_shelter['lon']}"
+            st.markdown(f"[🧭 Google Mapsでルート検索]({route_url})")
+
+if __name__ == "__main__":
+    st.set_page_config(
+        page_title="日田市観光防災アプリ",
+        page_icon="🏔️",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+    main()
